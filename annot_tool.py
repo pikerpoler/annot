@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import argparse
+import os
+
 import numpy as np
 import pandas as pd
 import copy
@@ -78,19 +80,20 @@ class HIC_Annotator(object):
                 mouseX, mouseY = x, y
             else:
                 self.display = self.curr_im.copy()
-                self.display = cv2.rectangle(self.display, (mouseX, mouseY), (x, y), color, thickness)
+                self.display = cv2.arrowedLine(self.display, (mouseX, mouseY), (x, y), color, thickness)
                 cv2.imshow('', self.display)
-                self.curr_x1 = x
-                self.curr_y1 = y
-                self.curr_x2 = mouseX
-                self.curr_y2 = mouseY
+                self.curr_x1 = mouseX
+                self.curr_y1 = mouseY
+                self.curr_x2 = x
+                self.curr_y2 = y
+
                 self.draw_rect = True
                 print('x1=', x, 'y1=', y, 'x2= ', mouseX, 'y2= ', mouseY)
             draw = 1 - draw
 
     def draw_region(self, x1, y1, x2, y2):
         im = self.curr_im.copy()
-        cv2.rectangle(self.display, (x1, y1), (x2, y2), color, thickness)
+        cv2.arrowedLine(self.display, (x1, y1), (x2, y2), color, thickness)
         return im
 #        cv2.waitKey(5000)
 
@@ -116,8 +119,9 @@ class HIC_Annotator(object):
     def run(self, debug=False):
         print(self.excel_file)
         print(self.root_dir)
+        open_window()
 
-        xls = pd.ExcelFile(self.excel_file)
+        xls = pd.ExcelFile(self.excel_file, engine='openpyxl')
         self.sheets = [s for s in xls.sheet_names if s != 'summary']
         xls.close()
         for sheet in self.sheets:
@@ -158,7 +162,10 @@ class HIC_Annotator(object):
                 try:
 #                    self.curr_im_path = f'{self.root_dir}{im}'
                     self.curr_im_path = f'{im}'
-
+                    # if we don't run on windows, we need to change the path
+                    if not os.path.exists(self.curr_im_path):
+                        self.curr_im_path = self.curr_im_path.replace('\\', '/')
+                    self.curr_im_path = os.path.join(self.root_dir, self.curr_im_path)
 #                    print(self.root_dir)
 #                    print("======>", self.root_dir)
 #                    print("------->", im)
@@ -172,11 +179,11 @@ class HIC_Annotator(object):
                     self.display = self.curr_im.copy() if not self.space_on else self.curr_brown_im
                     to_break = False
                     while not to_break:
-                        if  self.draw_rect:
+                        if self.draw_rect:
                             self.draw_region(self.curr_x1, self.curr_y1, self.curr_x2, self.curr_y2)
 
                         cv2.imshow('', self.display)
-                        rv = cv2.waitKey()
+                        rv = cv2.waitKey(0)
                         if debug:
                             print(rv)
                         to_break = self.onkey(rv)
@@ -210,7 +217,7 @@ class HIC_Annotator(object):
 
         if self.curr_sheet < 0:
             return
-        with pd.ExcelWriter(self.excel_file, if_sheet_exists='overlay', mode='w') as writer:
+        with pd.ExcelWriter(self.excel_file, if_sheet_exists='replace', mode='a') as writer:
             for sheet in self.sheets:
                 if sheet == self.sheets[self.curr_sheet]:
  #                   df = pd.DataFrame({'image path': self.images, 'label': self.labels})
